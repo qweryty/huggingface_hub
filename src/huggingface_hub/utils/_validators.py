@@ -40,6 +40,15 @@ class HFValidationError(ValueError):
     """
 
 
+def _validate_hf_hub_args(args, kwargs, signature: inspect.Signature):
+    for arg_name, arg_value in chain(
+        zip(signature.parameters, args),  # Args values
+        kwargs.items(),  # Kwargs values
+    ):
+        if arg_name == "repo_id":
+            validate_repo_id(arg_value)
+
+
 def validate_hf_hub_args(fn: Callable) -> Callable:
     """Validate values received as argument for any public method of `huggingface_hub`.
 
@@ -78,16 +87,27 @@ def validate_hf_hub_args(fn: Callable) -> Callable:
     # TODO: add an argument to opt-out validation for specific argument?
     signature = inspect.signature(fn)
 
-    @wraps(fn)
-    def _inner_fn(*args, **kwargs):
-        for arg_name, arg_value in chain(
-            zip(signature.parameters, args),  # Args values
-            kwargs.items(),  # Kwargs values
-        ):
-            if arg_name == "repo_id":
-                validate_repo_id(arg_value)
+    if inspect.isasyncgenfunction(fn):
 
-        return fn(*args, **kwargs)
+        @wraps(fn)
+        async def _inner_fn(*args, **kwargs):
+            _validate_hf_hub_args(args, kwargs, signature)
+            async for value in fn(*args, **kwargs):
+                yield value
+
+    elif inspect.iscoroutinefunction(fn):
+
+        @wraps(fn)
+        async def _inner_fn(*args, **kwargs):
+            _validate_hf_hub_args(args, kwargs, signature)
+            return await fn(*args, **kwargs)
+
+    else:
+
+        @wraps(fn)
+        def _inner_fn(*args, **kwargs):
+            _validate_hf_hub_args(args, kwargs, signature)
+            return fn(*args, **kwargs)
 
     return _inner_fn
 

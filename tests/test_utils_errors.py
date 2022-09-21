@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
+from httpx import Request, Response
 from huggingface_hub.utils._errors import (
     BadRequestError,
     EntryNotFoundError,
@@ -12,16 +13,16 @@ from huggingface_hub.utils._errors import (
     _raise_with_request_id,
     hf_raise_for_status,
 )
-from requests.models import Response
 
 from .testing_utils import expect_deprecation
 
 
 class TestErrorUtils(unittest.TestCase):
     def test_hf_raise_for_status_repo_not_found(self) -> None:
-        response = Response()
-        response.headers = {"X-Error-Code": "RepoNotFound", "X-Request-Id": 123}
-        response.status_code = 404
+        response = Response(
+            headers={"X-Error-Code": "RepoNotFound", "X-Request-Id": 123},
+            status_code=404,
+        )
         with self.assertRaisesRegex(
             RepositoryNotFoundError, "Repository Not Found"
         ) as context:
@@ -31,9 +32,7 @@ class TestErrorUtils(unittest.TestCase):
         self.assertIn("Request ID: 123", str(context.exception))
 
     def test_hf_raise_for_status_repo_not_found_without_error_code(self) -> None:
-        response = Response()
-        response.headers = {"X-Request-Id": 123}
-        response.status_code = 401
+        response = Response(headers={"X-Request-Id": "123"}, status_code=401)
         with self.assertRaisesRegex(
             RepositoryNotFoundError, "Repository Not Found"
         ) as context:
@@ -43,9 +42,10 @@ class TestErrorUtils(unittest.TestCase):
         self.assertIn("Request ID: 123", str(context.exception))
 
     def test_hf_raise_for_status_revision_not_found(self) -> None:
-        response = Response()
-        response.headers = {"X-Error-Code": "RevisionNotFound", "X-Request-Id": 123}
-        response.status_code = 404
+        response = Response(
+            headers={"X-Error-Code": "RevisionNotFound", "X-Request-Id": "123"},
+            status_code=404,
+        )
         with self.assertRaisesRegex(
             RevisionNotFoundError, "Revision Not Found"
         ) as context:
@@ -55,9 +55,10 @@ class TestErrorUtils(unittest.TestCase):
         self.assertIn("Request ID: 123", str(context.exception))
 
     def test_hf_raise_for_status_entry_not_found(self) -> None:
-        response = Response()
-        response.headers = {"X-Error-Code": "EntryNotFound", "X-Request-Id": 123}
-        response.status_code = 404
+        response = Response(
+            headers={"X-Error-Code": "EntryNotFound", "X-Request-Id": "123"},
+            status_code=404,
+        )
         with self.assertRaisesRegex(EntryNotFoundError, "Entry Not Found") as context:
             hf_raise_for_status(response)
 
@@ -66,16 +67,14 @@ class TestErrorUtils(unittest.TestCase):
 
     def test_hf_raise_for_status_bad_request_no_endpoint_name(self) -> None:
         """Test HTTPError converted to BadRequestError if error 400."""
-        response = Response()
-        response.status_code = 400
+        response = Response(status_code=400)
         with self.assertRaisesRegex(BadRequestError, "Bad request:") as context:
             hf_raise_for_status(response)
         self.assertEqual(context.exception.response.status_code, 400)
 
     def test_hf_raise_for_status_bad_request_with_endpoint_name(self) -> None:
         """Test endpoint name is added to BadRequestError message."""
-        response = Response()
-        response.status_code = 400
+        response = Response(status_code=400)
         with self.assertRaisesRegex(
             BadRequestError, "Bad request for preupload endpoint:"
         ) as context:
@@ -84,12 +83,11 @@ class TestErrorUtils(unittest.TestCase):
 
     def test_hf_raise_for_status_fallback(self) -> None:
         """Test HTTPError is converted to HfHubHTTPError."""
-        response = Response()
-        response.status_code = 404
-        response.headers = {
-            "X-Request-Id": "test-id",
-        }
-        response.url = "test_URL"
+        response = Response(
+            status_code=404,
+            headers={"X-Request-Id": "test-id"},
+            request=Request(method="GET", url="test_URL"),
+        )
         with self.assertRaisesRegex(HfHubHTTPError, "Request ID: test-id") as context:
             hf_raise_for_status(response)
 
@@ -128,9 +126,9 @@ class TestHfHubHTTPError(unittest.TestCase):
 
     def setUp(self) -> None:
         """Setup with a default response."""
-        self.response = Response()
-        self.response.status_code = 404
-        self.response.url = "test_URL"
+        self.response = Response(
+            status_code=404, request=Request(method="GET", url="test_URL")
+        )
 
     def test_hf_hub_http_error_initialization(self) -> None:
         """Test HfHubHTTPError is initialized properly."""

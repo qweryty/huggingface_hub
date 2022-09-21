@@ -49,6 +49,8 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+tests/fixtures/working_dataset
+repo-*
 
 # Translations
 *.mo

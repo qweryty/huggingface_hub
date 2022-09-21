@@ -1,7 +1,23 @@
+import inspect
 import warnings
 from functools import wraps
 from inspect import Parameter, signature
 from typing import Optional, Set
+
+
+def _args_to_kwargs(f, sig, args, kwargs, extra_args, kwonly_args, version):
+    args_msg = [
+        f"{name}='{arg}'" if isinstance(arg, str) else f"{name}={arg}"
+        for name, arg in zip(kwonly_args[:extra_args], args[-extra_args:])
+    ]
+    args_msg = ", ".join(args_msg)
+    warnings.warn(
+        f"Deprecated positional argument(s) used in '{f.__name__}': pass"
+        f" {args_msg} as keyword args. From version {version} passing these as"
+        " positional arguments will result in an error,",
+        FutureWarning,
+    )
+    kwargs.update(zip(sig.parameters, args))
 
 
 def _deprecate_positional_args(*, version: str):
@@ -24,25 +40,64 @@ def _deprecate_positional_args(*, version: str):
             elif param.kind == Parameter.KEYWORD_ONLY:
                 kwonly_args.append(name)
 
-        @wraps(f)
-        def inner_f(*args, **kwargs):
-            extra_args = len(args) - len(all_args)
-            if extra_args <= 0:
-                return f(*args, **kwargs)
-            # extra_args > 0
-            args_msg = [
-                f"{name}='{arg}'" if isinstance(arg, str) else f"{name}={arg}"
-                for name, arg in zip(kwonly_args[:extra_args], args[-extra_args:])
-            ]
-            args_msg = ", ".join(args_msg)
-            warnings.warn(
-                f"Deprecated positional argument(s) used in '{f.__name__}': pass"
-                f" {args_msg} as keyword args. From version {version} passing these as"
-                " positional arguments will result in an error,",
-                FutureWarning,
-            )
-            kwargs.update(zip(sig.parameters, args))
-            return f(**kwargs)
+        if inspect.isasyncgenfunction(f):
+
+            @wraps(f)
+            async def _inner_f(*args, **kwargs):
+                extra_args = len(args) - len(all_args)
+                if extra_args <= 0:
+                    async for value in f(*args, **kwargs):
+                        yield value
+                # extra_args > 0
+                _args_to_kwargs(
+                    f=f,
+                    sig=sig,
+                    args=args,
+                    kwargs=kwargs,
+                    extra_args=extra_args,
+                    kwonly_args=kwonly_args,
+                    version=version,
+                )
+                async for value in f(*args, **kwargs):
+                    yield value
+
+        elif inspect.iscoroutinefunction(f):
+
+            @wraps(f)
+            async def inner_f(*args, **kwargs):
+                extra_args = len(args) - len(all_args)
+                if extra_args <= 0:
+                    return await f(*args, **kwargs)
+                # extra_args > 0
+                _args_to_kwargs(
+                    f=f,
+                    sig=sig,
+                    args=args,
+                    kwargs=kwargs,
+                    extra_args=extra_args,
+                    kwonly_args=kwonly_args,
+                    version=version,
+                )
+                return await f(**kwargs)
+
+        else:
+
+            @wraps(f)
+            def inner_f(*args, **kwargs):
+                extra_args = len(args) - len(all_args)
+                if extra_args <= 0:
+                    return f(*args, **kwargs)
+                # extra_args > 0
+                _args_to_kwargs(
+                    f=f,
+                    sig=sig,
+                    args=args,
+                    kwargs=kwargs,
+                    extra_args=extra_args,
+                    kwonly_args=kwonly_args,
+                    version=version,
+                )
+                return f(**kwargs)
 
         return inner_f
 

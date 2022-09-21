@@ -195,7 +195,7 @@ def with_production_testing(func):
     )
 
     hf_api = patch(
-        "huggingface_hub.hf_api.ENDPOINT",
+        "huggingface_hub.async_hf_api.ENDPOINT",
         ENDPOINT_PRODUCTION,
     )
 

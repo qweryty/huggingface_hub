@@ -1,12 +1,13 @@
 from typing import Optional
 
-from requests import HTTPError, Response
+import requests
+from httpx import HTTPError, HTTPStatusError, Response
 
 from ._deprecation import _deprecate_method
 from ._fixes import JSONDecodeError
 
 
-class HfHubHTTPError(HTTPError):
+class HfHubHTTPError(HTTPStatusError):
     """
     HTTPError to inherit from for any custom HTTP Error raised in HF Hub.
 
@@ -53,6 +54,7 @@ class HfHubHTTPError(HTTPError):
                 request_id=self.request_id,
                 server_message=self.server_message,
             ),
+            request=response.request,
             response=response,
         )
 
@@ -148,7 +150,7 @@ class BadRequestError(HfHubHTTPError, ValueError):
     Example:
 
     ```py
-    >>> resp = requests.post("hf.co/api/check", ...)
+    >>> resp = httpx.post("hf.co/api/check", ...)
     >>> hf_raise_for_status(resp, endpoint_name="check")
     huggingface_hub.utils._errors.BadRequestError: Bad request for check endpoint: {details} (Request ID: XXX)
     ```
@@ -211,7 +213,8 @@ def hf_raise_for_status(
     """
     try:
         response.raise_for_status()
-    except HTTPError as e:
+    # FIXME when all else uses of requests will be removed
+    except (HTTPStatusError, requests.HTTPError) as e:
         error_code = response.headers.get("X-Error-Code")
 
         if error_code == "RevisionNotFound":

@@ -27,7 +27,7 @@ from urllib.parse import quote
 
 import pytest
 
-import requests
+from httpx import HTTPError
 from huggingface_hub._commit_api import CommitOperationAdd, CommitOperationDelete
 from huggingface_hub.commands.user import _login
 from huggingface_hub.community import DiscussionComment, DiscussionWithDetails
@@ -59,7 +59,6 @@ from huggingface_hub.utils.endpoint_helpers import (
     ModelFilter,
     _filter_emissions,
 )
-from requests.exceptions import HTTPError
 
 from .testing_constants import (
     ENDPOINT_STAGING,
@@ -194,7 +193,7 @@ class HfApiEndpointsTest(HfApiCommonTestWithLogin):
         # test for #751
         # See https://github.com/huggingface/huggingface_hub/issues/751
         with self.assertRaisesRegex(
-            requests.exceptions.HTTPError,
+            HTTPError,
             re.compile(
                 r"404 Client Error(.+)\(Request ID: .+\)(.*)Repository Not Found",
                 flags=re.DOTALL,
@@ -1462,7 +1461,7 @@ class HfApiPrivateTest(HfApiCommonTestWithLogin):
         shutil.rmtree(os.path.dirname(HfFolder.path_token), ignore_errors=True)
         # Test we cannot access model info without a token
         with self.assertRaisesRegex(
-            requests.exceptions.HTTPError,
+            HTTPError,
             re.compile(
                 r"401 Client Error(.+)\(Request ID: .+\)(.*)Repository Not Found",
                 flags=re.DOTALL,
@@ -1484,7 +1483,7 @@ class HfApiPrivateTest(HfApiCommonTestWithLogin):
         shutil.rmtree(os.path.dirname(HfFolder.path_token), ignore_errors=True)
         # Test we cannot access model info without a token
         with self.assertRaisesRegex(
-            requests.exceptions.HTTPError,
+            HTTPError,
             re.compile(
                 r"401 Client Error(.+)\(Request ID: .+\)(.*)Repository Not Found",
                 flags=re.DOTALL,
